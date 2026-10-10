@@ -1,14 +1,18 @@
 use std::sync::Arc;
 
 use nih_plug::prelude::*;
+use nih_plug_egui::EguiState;
 
 pub mod dsp;
+mod editor;
 
 use dsp::{AllpassCoefs, Disperser, MAX_STAGES};
 
 pub struct Ikupeser {
 	params: Arc<IkupeserParams>,
 	sample_rate: f32,
+	/// Sample rate published to the editor for the group delay plot.
+	shared_sample_rate: Arc<AtomicF32>,
 	/// One cascade per main output channel, allocated in `initialize`.
 	channels: Vec<Disperser>,
 	coefs: AllpassCoefs,
@@ -21,6 +25,9 @@ pub struct Ikupeser {
 
 #[derive(Params)]
 pub struct IkupeserParams {
+	#[persist = "editor-state"]
+	editor_state: Arc<EguiState>,
+
 	/// Number of cascaded allpass stages.
 	#[id = "amount"]
 	pub amount: FloatParam,
@@ -41,6 +48,8 @@ pub struct IkupeserParams {
 impl Default for IkupeserParams {
 	fn default() -> Self {
 		Self {
+			editor_state: editor::default_state(),
+
 			amount: FloatParam::new(
 				"Amount",
 				16.0,
@@ -95,6 +104,7 @@ impl Default for Ikupeser {
 		Self {
 			params: Arc::new(IkupeserParams::default()),
 			sample_rate: 44_100.0,
+			shared_sample_rate: Arc::new(AtomicF32::new(44_100.0)),
 			channels: Vec::new(),
 			coefs: AllpassCoefs::new(1000.0, 1.0, 44_100.0),
 			coefs_frequency: f32::NAN,
@@ -133,6 +143,10 @@ impl Plugin for Ikupeser {
 		self.params.clone()
 	}
 
+	fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+		editor::create(self.params.clone(), self.shared_sample_rate.clone())
+	}
+
 	fn initialize(
 		&mut self,
 		audio_io_layout: &AudioIOLayout,
@@ -140,6 +154,8 @@ impl Plugin for Ikupeser {
 		_context: &mut impl InitContext<Self>,
 	) -> bool {
 		self.sample_rate = buffer_config.sample_rate;
+		self.shared_sample_rate
+			.store(buffer_config.sample_rate, std::sync::atomic::Ordering::Relaxed);
 
 		let num_channels = audio_io_layout.main_output_channels.map_or(0, NonZeroU32::get) as usize;
 		self.channels.resize_with(num_channels, Disperser::default);
