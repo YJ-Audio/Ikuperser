@@ -1,3 +1,7 @@
+use nih_plug::prelude::*;
+
+use ikupeser::Ikupeser;
+
 fn main() {
-    println!("Hello, world!");
+	nih_export_standalone::<Ikupeser>();
 }
