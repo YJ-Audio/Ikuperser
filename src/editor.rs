@@ -9,7 +9,7 @@ use nih_plug_egui::egui::{
 };
 use nih_plug_egui::{EguiState, create_egui_editor};
 
-use crate::IkupeserParams;
+use crate::IkuperserParams;
 use crate::dsp::{MAX_STAGES, group_delay_ms};
 
 const WIDTH: u32 = 640;
@@ -126,7 +126,7 @@ pub fn default_state() -> Arc<EguiState> {
 	EguiState::from_size(WIDTH, HEIGHT)
 }
 
-pub fn create(params: Arc<IkupeserParams>, sample_rate: Arc<AtomicF32>) -> Option<Box<dyn Editor>> {
+pub fn create(params: Arc<IkuperserParams>, sample_rate: Arc<AtomicF32>) -> Option<Box<dyn Editor>> {
 	create_egui_editor(
 		params.editor_state.clone(),
 		EditorState::default(),
@@ -159,7 +159,7 @@ pub fn create(params: Arc<IkupeserParams>, sample_rate: Arc<AtomicF32>) -> Optio
 fn header(ui: &mut Ui) {
 	ui.horizontal(|ui| {
 		ui.label(
-			egui::RichText::new("IKUPESER")
+			egui::RichText::new("IKUPERSER")
 				.font(FontId::proportional(22.0))
 				.color(TEXT)
 				.strong(),
@@ -240,7 +240,7 @@ fn plot_input(ui: &Ui, param: &FloatParam, setter: &ParamSetter, state: &mut Con
 	}
 }
 
-fn delay_plot(ui: &mut Ui, rect: Rect, params: &IkupeserParams, state: &mut EditorState, sample_rate: f32) {
+fn delay_plot(ui: &mut Ui, rect: Rect, params: &IkuperserParams, state: &mut EditorState, sample_rate: f32) {
 	let painter = ui.painter_at(rect);
 	painter.rect_filled(rect, CornerRadius::same(6), PANEL);
 
@@ -584,7 +584,7 @@ mod tests {
 	fn plot_click_and_drag_display_submitted_frequency() {
 		let ctx = egui::Context::default();
 		let host = DelayedHost::default();
-		let param = IkupeserParams::default().frequency;
+		let param = IkuperserParams::default().frequency;
 		let mut state = ControlState::default();
 		let mut now = 0.0;
 		let mut frame = |x: f32, button: Option<bool>| {
@@ -635,7 +635,7 @@ mod tests {
 
 	#[test]
 	fn fine_drag_preserves_sub_step_amount_movement() {
-		let mut gui = KnobHarness::new(IkupeserParams::default().amount);
+		let mut gui = KnobHarness::new(IkuperserParams::default().amount);
 		let start = gui.param.unmodulated_normalized_value();
 		gui.frame(80.0, Some((PointerButton::Primary, true)), false);
 		gui.frame(72.0, None, false);

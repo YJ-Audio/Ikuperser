@@ -8,8 +8,8 @@ mod editor;
 
 use dsp::{AllpassCoefs, Disperser, MAX_STAGES};
 
-pub struct Ikupeser {
-	params: Arc<IkupeserParams>,
+pub struct Ikuperser {
+	params: Arc<IkuperserParams>,
 	sample_rate: f32,
 	/// Sample rate published to the editor for the group delay plot.
 	shared_sample_rate: Arc<AtomicF32>,
@@ -24,7 +24,7 @@ pub struct Ikupeser {
 }
 
 #[derive(Params)]
-pub struct IkupeserParams {
+pub struct IkuperserParams {
 	#[persist = "editor-state"]
 	editor_state: Arc<EguiState>,
 
@@ -45,7 +45,7 @@ pub struct IkupeserParams {
 	pub mix: FloatParam,
 }
 
-impl Default for IkupeserParams {
+impl Default for IkuperserParams {
 	fn default() -> Self {
 		Self {
 			editor_state: editor::default_state(),
@@ -99,10 +99,10 @@ impl Default for IkupeserParams {
 	}
 }
 
-impl Default for Ikupeser {
+impl Default for Ikuperser {
 	fn default() -> Self {
 		Self {
-			params: Arc::new(IkupeserParams::default()),
+			params: Arc::new(IkuperserParams::default()),
 			sample_rate: 44_100.0,
 			shared_sample_rate: Arc::new(AtomicF32::new(44_100.0)),
 			channels: Vec::new(),
@@ -113,8 +113,8 @@ impl Default for Ikupeser {
 	}
 }
 
-impl Plugin for Ikupeser {
-	const NAME: &'static str = "Ikupeser";
+impl Plugin for Ikuperser {
+	const NAME: &'static str = "Ikuperser";
 	const VENDOR: &'static str = "potistudio";
 	const URL: &'static str = env!("CARGO_PKG_HOMEPAGE");
 	const EMAIL: &'static str = "";
@@ -200,7 +200,8 @@ impl Plugin for Ikupeser {
 	}
 }
 
-impl ClapPlugin for Ikupeser {
+impl ClapPlugin for Ikuperser {
+	// Host identity must remain stable for saved projects to resolve this plugin.
 	const CLAP_ID: &'static str = "com.potistudio.ikupeser";
 	const CLAP_DESCRIPTION: Option<&'static str> = Some(env!("CARGO_PKG_DESCRIPTION"));
 	const CLAP_MANUAL_URL: Option<&'static str> = None;
@@ -213,10 +214,11 @@ impl ClapPlugin for Ikupeser {
 	];
 }
 
-impl Vst3Plugin for Ikupeser {
+impl Vst3Plugin for Ikuperser {
+	// Host identity must remain stable for saved projects to resolve this plugin.
 	const VST3_CLASS_ID: [u8; 16] = *b"IkupeserDispersr";
 	const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Fx, Vst3SubCategory::Filter];
 }
 
-nih_export_clap!(Ikupeser);
-nih_export_vst3!(Ikupeser);
+nih_export_clap!(Ikuperser);
+nih_export_vst3!(Ikuperser);
