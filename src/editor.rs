@@ -4,8 +4,8 @@ use std::sync::atomic::Ordering;
 
 use nih_plug::prelude::*;
 use nih_plug_egui::egui::{
-	self, Align2, Color32, CornerRadius, FontId, Mesh, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke, Ui,
-	Vec2,
+	self, Align2, Color32, CornerRadius, FontId, Mesh, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke,
+	StrokeKind, Ui, Vec2,
 };
 use nih_plug_egui::{EguiState, create_egui_editor};
 
@@ -15,13 +15,18 @@ use crate::dsp::{MAX_STAGES, group_delay_ms};
 const WIDTH: u32 = 640;
 const HEIGHT: u32 = 420;
 
-const BACKGROUND: Color32 = Color32::from_rgb(0x15, 0x16, 0x1c);
-const PANEL: Color32 = Color32::from_rgb(0x1e, 0x20, 0x29);
-const GRID: Color32 = Color32::from_rgb(0x2c, 0x2f, 0x3b);
-const TEXT: Color32 = Color32::from_rgb(0xd8, 0xdb, 0xe6);
-const TEXT_DIM: Color32 = Color32::from_rgb(0x7c, 0x81, 0x94);
-const ACCENT: Color32 = Color32::from_rgb(0x5c, 0xe1, 0xe6);
-const ACCENT_FILL: Color32 = Color32::from_rgba_premultiplied(0x17, 0x38, 0x3a, 0x40);
+const BACKGROUND: Color32 = Color32::from_rgb(0x22, 0x24, 0x23);
+const PANEL: Color32 = Color32::from_rgb(0x18, 0x1a, 0x19);
+const GRID: Color32 = Color32::from_rgb(0x2b, 0x2f, 0x2c);
+const BORDER: Color32 = Color32::from_rgb(0x3a, 0x3e, 0x3b);
+const TEXT: Color32 = Color32::from_rgb(0xea, 0xed, 0xe7);
+const TEXT_DIM: Color32 = Color32::from_rgb(0x9a, 0xa3, 0x98);
+const ACCENT: Color32 = Color32::from_rgb(0xb5, 0xe8, 0x53);
+const ACCENT_FILL: Color32 = Color32::from_rgba_premultiplied(0x22, 0x2c, 0x10, 0x30);
+const EDITOR_MARGIN: i8 = 20;
+const HEADER_HEIGHT: f32 = 44.0;
+const PLOT_HEIGHT: f32 = 158.0;
+const FOOTER_HEIGHT: f32 = 18.0;
 
 const MIN_FREQUENCY: f32 = 20.0;
 const MAX_FREQUENCY: f32 = 20_000.0;
@@ -130,44 +135,102 @@ pub fn create(params: Arc<IkuperserParams>, sample_rate: Arc<AtomicF32>) -> Opti
 	create_egui_editor(
 		params.editor_state.clone(),
 		EditorState::default(),
-		|_, _| {},
+		|ctx, _| {
+			let mut style = (*ctx.style()).clone();
+			style.visuals = egui::Visuals::dark();
+			style.visuals.override_text_color = Some(TEXT);
+			style.visuals.selection.bg_fill = ACCENT;
+			style.visuals.selection.stroke = Stroke::new(1.0_f32, PANEL);
+			style.spacing.item_spacing = Vec2::ZERO;
+			ctx.set_style(style);
+		},
 		move |ctx, setter, state| {
 			egui::CentralPanel::default()
-				.frame(egui::Frame::new().fill(BACKGROUND).inner_margin(egui::Margin::same(16)))
+				.frame(
+					egui::Frame::new()
+						.fill(BACKGROUND)
+						.inner_margin(egui::Margin::same(EDITOR_MARGIN)),
+				)
 				.show(ctx, |ui| {
-					header(ui);
-					ui.add_space(12.0);
-					let (plot_rect, plot_response) =
-						ui.allocate_exact_size(Vec2::new(ui.available_width(), 220.0), Sense::click_and_drag());
-					plot_input(ui, &params.frequency, setter, &mut state.frequency, &plot_response);
-					ui.add_space(16.0);
-					ui.horizontal(|ui| {
-						let spacing = (ui.available_width() - 4.0 * KNOB_SIZE.x) / 3.0;
-						ui.spacing_mut().item_spacing.x = spacing.max(0.0);
-						knob(ui, &params.amount, setter, &mut state.amount);
-						knob(ui, &params.frequency, setter, &mut state.frequency);
-						knob(ui, &params.pinch, setter, &mut state.pinch);
-						knob(ui, &params.mix, setter, &mut state.mix);
-					});
-					// Paint after input processing so the plot and knobs use the same submitted values.
-					delay_plot(ui, plot_rect, &params, state, sample_rate.load(Ordering::Relaxed));
+					editor_ui(ui, &params, setter, state, sample_rate.load(Ordering::Relaxed));
 				});
 		},
 	)
 }
 
-fn header(ui: &mut Ui) {
+fn editor_ui(ui: &mut Ui, params: &IkuperserParams, setter: &ParamSetter, state: &mut EditorState, sample_rate: f32) {
+	ui.spacing_mut().item_spacing = Vec2::ZERO;
+	header(ui);
+	ui.add_space(12.0);
+	let (plot_rect, plot_response) =
+		ui.allocate_exact_size(Vec2::new(ui.available_width(), PLOT_HEIGHT), Sense::click_and_drag());
+	plot_input(ui, &params.frequency, setter, &mut state.frequency, &plot_response);
+	plot_response.on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+	ui.add_space(16.0);
 	ui.horizontal(|ui| {
-		ui.label(
-			egui::RichText::new("IKUPERSER")
-				.font(FontId::proportional(22.0))
-				.color(TEXT)
-				.strong(),
-		);
-		ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-			ui.label(egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION"))).color(TEXT_DIM));
-		});
+		let spacing = (ui.available_width() - 4.0 * KNOB_SIZE.x) / 3.0;
+		ui.spacing_mut().item_spacing.x = spacing.max(0.0);
+		knob(ui, &params.amount, setter, &mut state.amount);
+		knob(ui, &params.frequency, setter, &mut state.frequency);
+		knob(ui, &params.pinch, setter, &mut state.pinch);
+		knob(ui, &params.mix, setter, &mut state.mix);
 	});
+	// Paint after input processing so the plot and knobs use the same submitted values.
+	delay_plot(ui, plot_rect, params, state, sample_rate);
+	ui.add_space(10.0);
+	let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), FOOTER_HEIGHT), Sense::hover());
+	let painter = ui.painter_at(rect);
+	painter.line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0_f32, BORDER));
+	painter.text(
+		rect.left_bottom(),
+		Align2::LEFT_BOTTOM,
+		"DRAG TO TUNE   /   SHIFT: FINE   /   DOUBLE-CLICK: RESET",
+		FontId::proportional(9.0),
+		TEXT_DIM,
+	);
+	painter.text(
+		rect.right_bottom(),
+		Align2::RIGHT_BOTTOM,
+		concat!("v", env!("CARGO_PKG_VERSION")),
+		FontId::monospace(9.0),
+		TEXT_DIM,
+	);
+}
+
+fn header(ui: &mut Ui) {
+	let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), HEADER_HEIGHT), Sense::hover());
+	let painter = ui.painter_at(rect);
+	let icon_center = rect.left_top() + Vec2::new(14.0, 17.0);
+	for offset in [-7.0_f32, 0.0, 7.0] {
+		painter.line_segment(
+			[
+				icon_center + Vec2::new(offset - 3.0, 8.0),
+				icon_center + Vec2::new(offset + 3.0, -8.0),
+			],
+			Stroke::new(2.5_f32, ACCENT),
+		);
+	}
+	painter.text(
+		rect.left_top() + Vec2::new(38.0, 0.0),
+		Align2::LEFT_TOP,
+		"Ikuperser",
+		FontId::proportional(25.0),
+		TEXT,
+	);
+	painter.text(
+		rect.left_bottom() + Vec2::new(39.0, 0.0),
+		Align2::LEFT_BOTTOM,
+		"PHASE DISPERSION",
+		FontId::proportional(10.0),
+		TEXT_DIM,
+	);
+	painter.text(
+		rect.right_top() + Vec2::new(0.0, 8.0),
+		Align2::RIGHT_TOP,
+		"POTISTUDIO",
+		FontId::proportional(10.0),
+		TEXT_DIM,
+	);
 }
 
 fn frequency_to_x(rect: Rect, frequency: f32) -> f32 {
@@ -229,7 +292,7 @@ fn plot_input(ui: &Ui, param: &FloatParam, setter: &ParamSetter, state: &mut Con
 	if (response.dragged_by(PointerButton::Primary) || response.drag_stopped() || clicked)
 		&& let (Some(pointer), Some(drag)) = (response.interact_pointer_pos(), &mut state.drag)
 	{
-		let plot = response.rect.shrink2(Vec2::new(8.0, 18.0));
+		let plot = plot_bounds(response.rect);
 		drag.normalized = param.preview_normalized(x_to_frequency(plot, pointer.x));
 		let normalized = drag.normalized;
 		state.set_normalized(param, setter, normalized, now);
@@ -240,11 +303,28 @@ fn plot_input(ui: &Ui, param: &FloatParam, setter: &ParamSetter, state: &mut Con
 	}
 }
 
+fn plot_bounds(rect: Rect) -> Rect {
+	Rect::from_min_max(rect.min + Vec2::new(16.0, 32.0), rect.max - Vec2::new(16.0, 24.0))
+}
+
 fn delay_plot(ui: &mut Ui, rect: Rect, params: &IkuperserParams, state: &mut EditorState, sample_rate: f32) {
 	let painter = ui.painter_at(rect);
-	painter.rect_filled(rect, CornerRadius::same(6), PANEL);
+	painter.rect_filled(rect, CornerRadius::same(8), PANEL);
+	painter.rect_stroke(
+		rect,
+		CornerRadius::same(8),
+		Stroke::new(1.0_f32, BORDER),
+		StrokeKind::Inside,
+	);
 
-	let plot = rect.shrink2(Vec2::new(8.0, 18.0));
+	let plot = plot_bounds(rect);
+	for fraction in [0.0, 0.5, 1.0] {
+		let y = plot.bottom() - fraction * plot.height();
+		painter.line_segment(
+			[Pos2::new(plot.left(), y), Pos2::new(plot.right(), y)],
+			Stroke::new(0.5_f32, GRID),
+		);
+	}
 
 	for decade in [100.0, 1_000.0, 10_000.0] {
 		for step in 1..10 {
@@ -256,16 +336,19 @@ fn delay_plot(ui: &mut Ui, rect: Rect, params: &IkuperserParams, state: &mut Edi
 			let stroke = Stroke::new(if step == 1 { 1.0_f32 } else { 0.5 }, GRID);
 			painter.line_segment([Pos2::new(x, plot.top()), Pos2::new(x, plot.bottom())], stroke);
 		}
-		let label = if decade >= 1_000.0 {
-			format!("{}k", decade / 1_000.0)
-		} else {
-			format!("{decade}")
-		};
+	}
+	for (frequency, label, align) in [
+		(20.0, "20 Hz", Align2::LEFT_BOTTOM),
+		(100.0, "100", Align2::CENTER_BOTTOM),
+		(1_000.0, "1k", Align2::CENTER_BOTTOM),
+		(10_000.0, "10k", Align2::CENTER_BOTTOM),
+		(20_000.0, "20k", Align2::RIGHT_BOTTOM),
+	] {
 		painter.text(
-			Pos2::new(frequency_to_x(plot, decade) + 3.0, rect.bottom() - 3.0),
-			Align2::LEFT_BOTTOM,
+			Pos2::new(frequency_to_x(plot, frequency), rect.bottom() - 7.0),
+			align,
 			label,
-			FontId::proportional(10.0),
+			FontId::monospace(9.0),
 			TEXT_DIM,
 		);
 	}
@@ -291,35 +374,41 @@ fn delay_plot(ui: &mut Ui, rect: Rect, params: &IkuperserParams, state: &mut Edi
 		}
 	}
 	painter.add(Shape::mesh(mesh));
+	let curve: Vec<Pos2> = delays.iter().map(|&(x, delay)| Pos2::new(x, to_y(delay))).collect();
 	painter.add(Shape::line(
-		delays.iter().map(|&(x, delay)| Pos2::new(x, to_y(delay))).collect(),
-		Stroke::new(2.0_f32, curve_color),
+		curve.clone(),
+		Stroke::new(5.0_f32, ACCENT.gamma_multiply(0.08 * mix)),
 	));
+	painter.add(Shape::line(curve, Stroke::new(1.8_f32, curve_color)));
 
 	let center_x = frequency_to_x(plot, center);
 	painter.line_segment(
 		[Pos2::new(center_x, plot.top()), Pos2::new(center_x, plot.bottom())],
-		Stroke::new(1.0_f32, ACCENT.gamma_multiply(0.5)),
+		Stroke::new(1.0_f32, ACCENT.gamma_multiply(0.25)),
 	);
+	let handle = Pos2::new(center_x, to_y(group_delay_ms(center, center, q, amount, sample_rate)));
+	painter.circle_filled(handle, 6.0, PANEL);
+	painter.circle_stroke(handle, 4.0, Stroke::new(1.5_f32, curve_color));
+	painter.circle_filled(handle, 1.5, TEXT);
 
 	painter.text(
-		rect.left_top() + Vec2::new(8.0, 4.0),
+		rect.left_top() + Vec2::new(16.0, 11.0),
 		Align2::LEFT_TOP,
-		format!("{max_delay:.3} ms"),
-		FontId::proportional(10.0),
+		"GROUP DELAY",
+		FontId::proportional(9.0),
 		TEXT_DIM,
 	);
 	painter.text(
-		rect.right_top() + Vec2::new(-8.0, 4.0),
+		rect.right_top() + Vec2::new(-16.0, 10.0),
 		Align2::RIGHT_TOP,
-		"group delay",
-		FontId::proportional(10.0),
+		format!("{max_delay:.2} ms / full scale"),
+		FontId::monospace(9.0),
 		TEXT_DIM,
 	);
 }
 
-const KNOB_SIZE: Vec2 = Vec2::new(96.0, 120.0);
-const KNOB_RADIUS: f32 = 30.0;
+const KNOB_SIZE: Vec2 = Vec2::new(112.0, 122.0);
+const KNOB_RADIUS: f32 = 29.0;
 /// The knob arc spans 270 degrees, starting at the lower left.
 const KNOB_START_ANGLE: f32 = 0.75 * PI;
 const KNOB_SWEEP: f32 = 1.5 * PI;
@@ -352,7 +441,7 @@ fn knob(ui: &mut Ui, param: &FloatParam, setter: &ParamSetter, state: &mut Contr
 	}
 
 	let painter = ui.painter_at(rect);
-	let center = Pos2::new(rect.center().x, rect.top() + 8.0 + KNOB_RADIUS);
+	let center = Pos2::new(rect.center().x, rect.top() + 53.0);
 	let normalized = state.normalized(param, now);
 	let arc = |from: f32, to: f32, radius: f32| -> Vec<Pos2> {
 		let steps = 48;
@@ -365,35 +454,69 @@ fn knob(ui: &mut Ui, param: &FloatParam, setter: &ParamSetter, state: &mut Contr
 	};
 
 	let highlighted = response.hovered() || response.dragged();
-	painter.circle_filled(center, KNOB_RADIUS - 6.0, if highlighted { GRID } else { PANEL });
-	painter.add(Shape::line(arc(0.0, 1.0, KNOB_RADIUS), Stroke::new(4.0_f32, GRID)));
-	painter.add(Shape::line(
-		arc(0.0, normalized, KNOB_RADIUS),
-		Stroke::new(4.0_f32, ACCENT),
-	));
+	for step in 0..=10 {
+		let direction = Vec2::angled(KNOB_START_ANGLE + KNOB_SWEEP * step as f32 / 10.0);
+		painter.line_segment(
+			[
+				center + direction * (KNOB_RADIUS + 6.0),
+				center + direction * (KNOB_RADIUS + 9.0),
+			],
+			Stroke::new(1.0_f32, BORDER),
+		);
+	}
+	painter.circle_filled(
+		center + Vec2::new(0.0, 2.0),
+		KNOB_RADIUS - 4.0,
+		Color32::from_black_alpha(65),
+	);
+	painter.circle_filled(center, KNOB_RADIUS - 5.0, if highlighted { BORDER } else { GRID });
+	painter.circle_stroke(center, KNOB_RADIUS - 5.0, Stroke::new(1.0_f32, BORDER));
+	painter.circle_filled(center, KNOB_RADIUS - 8.0, BACKGROUND);
+	painter.add(Shape::line(arc(0.0, 1.0, KNOB_RADIUS), Stroke::new(2.5_f32, BORDER)));
+	if normalized > 0.0 {
+		painter.add(Shape::line(
+			arc(0.0, normalized, KNOB_RADIUS),
+			Stroke::new(2.5_f32, ACCENT),
+		));
+	}
 
 	let pointer_dir = Vec2::angled(KNOB_START_ANGLE + KNOB_SWEEP * normalized);
 	painter.line_segment(
-		[center + pointer_dir * 8.0, center + pointer_dir * (KNOB_RADIUS - 10.0)],
+		[center + pointer_dir * 11.0, center + pointer_dir * (KNOB_RADIUS - 10.0)],
 		Stroke::new(2.0_f32, TEXT),
 	);
 
 	painter.text(
-		Pos2::new(rect.center().x, center.y + KNOB_RADIUS + 12.0),
+		Pos2::new(rect.center().x, rect.top() + 6.0),
 		Align2::CENTER_CENTER,
 		param.name().to_uppercase(),
-		FontId::proportional(12.0),
-		TEXT_DIM,
+		FontId::proportional(10.0),
+		if highlighted { TEXT } else { TEXT_DIM },
+	);
+	let value_rect = Rect::from_center_size(Pos2::new(rect.center().x, rect.top() + 107.0), Vec2::new(94.0, 26.0));
+	painter.rect_filled(value_rect, CornerRadius::same(4), PANEL);
+	painter.rect_stroke(
+		value_rect,
+		CornerRadius::same(4),
+		Stroke::new(
+			1.0_f32,
+			if highlighted {
+				ACCENT.gamma_multiply(0.5)
+			} else {
+				BORDER
+			},
+		),
+		StrokeKind::Inside,
 	);
 	painter.text(
-		Pos2::new(rect.center().x, center.y + KNOB_RADIUS + 30.0),
+		value_rect.center(),
 		Align2::CENTER_CENTER,
 		param.normalized_value_to_string(normalized, true),
-		FontId::proportional(14.0),
-		TEXT,
+		FontId::monospace(13.0),
+		if highlighted { ACCENT } else { TEXT },
 	);
 
-	response
+	response.on_hover_cursor(egui::CursorIcon::ResizeVertical)
 }
 
 #[cfg(test)]
@@ -528,6 +651,60 @@ mod tests {
 	}
 
 	#[test]
+	fn editor_layout_fits_default_window() {
+		let ctx = egui::Context::default();
+		let host = DelayedHost::default();
+		let params = IkuperserParams::default();
+		let mut state = EditorState::default();
+		let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH as f32, HEIGHT as f32));
+		let content = screen.shrink(EDITOR_MARGIN as f32);
+		for sample_rate in [44_100.0, 48_000.0, 96_000.0] {
+			let output = ctx.run(
+				egui::RawInput {
+					screen_rect: Some(screen),
+					..Default::default()
+				},
+				|ctx| {
+					egui::CentralPanel::default()
+						.frame(
+							egui::Frame::new()
+								.fill(BACKGROUND)
+								.inner_margin(egui::Margin::same(EDITOR_MARGIN)),
+						)
+						.show(ctx, |ui| {
+							editor_ui(ui, &params, &ParamSetter::new(&host), &mut state, sample_rate);
+							assert!(ui.min_rect().right() <= content.right() + 0.01);
+							assert!(ui.min_rect().bottom() <= content.bottom() + 0.01);
+						});
+				},
+			);
+			let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
+			assert!(!primitives.is_empty());
+			for primitive in primitives {
+				if let egui::epaint::Primitive::Mesh(mesh) = primitive.primitive {
+					assert!(mesh.vertices.iter().all(|vertex| vertex.pos.is_finite()));
+				}
+			}
+		}
+		assert!(host.events.lock().unwrap().is_empty());
+	}
+
+	#[test]
+	fn plot_frequency_mapping_matches_visible_bounds() {
+		let rect = Rect::from_min_size(Pos2::new(20.0, 76.0), Vec2::new(600.0, PLOT_HEIGHT));
+		let plot = plot_bounds(rect);
+		assert!(rect.contains_rect(plot));
+		assert_eq!(plot.top() - rect.top(), 32.0);
+		assert_eq!(rect.bottom() - plot.bottom(), 24.0);
+		for frequency in [MIN_FREQUENCY, 100.0, 1_000.0, 10_000.0, MAX_FREQUENCY] {
+			let x = frequency_to_x(plot, frequency);
+			assert!((x_to_frequency(plot, x) / frequency - 1.0).abs() < 1.0e-5);
+		}
+		assert_eq!(x_to_frequency(plot, rect.left()), MIN_FREQUENCY);
+		assert_eq!(x_to_frequency(plot, rect.right()), MAX_FREQUENCY);
+	}
+
+	#[test]
 	fn drag_accumulates_without_host_feedback() {
 		let mut gui = KnobHarness::new(continuous_param(0.5));
 		gui.frame(80.0, Some((PointerButton::Primary, true)), false);
@@ -611,7 +788,7 @@ mod tests {
 						let (rect, response) = ui.allocate_exact_size(Vec2::new(592.0, 220.0), Sense::click_and_drag());
 						plot_input(ui, &param, &ParamSetter::new(&host), &mut state, &response);
 						if response.clicked() || response.dragged() || response.drag_stopped() {
-							let expected = x_to_frequency(rect.shrink2(Vec2::new(8.0, 18.0)), x);
+							let expected = x_to_frequency(plot_bounds(rect), x);
 							assert!((state.plain_value(&param, now) / expected - 1.0).abs() < 1.0e-5);
 						}
 					});
