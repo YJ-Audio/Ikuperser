@@ -5,7 +5,7 @@ A phase dispersion effect in the spirit of Kilohearts Disperser, written in Rust
 identical second-order allpass filters, which delays frequencies around the center frequency and
 turns transients into chirps.
 
-Formats: VST3, CLAP, and a standalone application.
+Formats: VST3 and CLAP.
 
 ## Parameters
 
@@ -26,7 +26,7 @@ double-click to reset.
 cargo xtask bundle ikuperser --release
 ```
 
-The bundles are written to `target/bundled/` (`Ikuperser.vst3`, `Ikuperser.clap`, `Ikuperser.exe`).
+The bundles are written to `target/bundled/` (`Ikuperser.vst3`, `Ikuperser.clap`).
 On Windows, copy `Ikuperser.vst3` to `C:\Program Files\Common Files\VST3\`.
 
 ## Testing
