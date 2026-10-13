@@ -27,6 +27,8 @@ debug = true
 strip = "none"
 
 [dependencies]
+# Fetch NIH-plug from Git because it is not published on crates.io.
+# Pin related crates to the same revision for API compatibility and reproducible builds.
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "de421011f41a6d10fc8c7a6084e4f4dee0143683", features = [
   "assert_process_allocs",
   "standalone",
