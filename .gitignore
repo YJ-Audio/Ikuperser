@@ -6,8 +6,3 @@ target/
 
 # Personal references
 refs/
-
-
-# Added by cargo
-
-/target
